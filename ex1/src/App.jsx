@@ -154,16 +154,28 @@ const App = () => {
   //   .then((res) => res.json())
   //   .then((data) => console.log(data))
   //   .catch((error) => console.log(error));
+
+  const [isloading, setIsloading] = useState(false);
   const [fetchData, setFetchData] = useState([]);
+  const [error, setError] = useState(null);
   useEffect(() => {
     const getData = async () => {
       try {
+        setIsloading(true);
         const res = await fetch(
           "https://jsonplaceholder.typicode.com/photos?_limit=10",
         );
         const data = await res.json();
-        setFetchData(data);
+        if (res.status === 200) {
+          setFetchData(data);
+          setIsloading(false);
+        } else {
+          setError("Failed to fetch data");
+          setIsloading(false);
+        }
       } catch (error) {
+        setIsloading(false);
+        setError("An error occurred while fetching data");
         console.log(error);
       }
     };
@@ -184,7 +196,23 @@ const App = () => {
   return (
     <>
       <h1>Hello React</h1>
-      {fetchData.map}
+      {isloading && <p>Loading...</p>}
+      {isloading && error && <p>{error}</p>}
+      {!isloading && fetchData.length && (
+        <ul>
+          {fetchData.slice(0, 10).map((item) => (
+            <li key={item.id}>
+              <h3>{item.title}</h3>
+              <img
+                src={item.thumbnailUrl}
+                alt={item.title}
+                width="150"
+                height="150"
+              />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* <form onSubmit={handleClick}>
         <label htmlFor="username">Username</label>
