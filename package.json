@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "hook": "^0.1.0",
     "hooks": "^0.3.2"
   }
 }
