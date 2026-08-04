@@ -1,17 +1,15 @@
-/* eslint-disable no-undef */
-/* eslint-disable no-unused-vars */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "./assets/vite.svg";
 import heroImg from "./assets/hero.png";
-
-import CategoryFilter from "./components/CategoryFilter";
-import RecipeList from "./components/RecipeList";
-import Favorites from "./components/Favorites";
 import "./App.css";
+import SearchForm from "./components/SearchForm";
+import WeatherCard from "./components/WeatherCard";
+import NoteForm from "./components/NoteForm";
+import NotesList from "./components/NotesList";
 
 // function App() {
-//   const [count, setCount] = useState(0)
+//   const [count, setCount] = useState(0);
 
 //   return (
 //     <>
@@ -122,101 +120,89 @@ import "./App.css";
 //       <div className="ticks"></div>
 //       <section id="spacer"></section>
 //     </>
-//   )
+//   );
 // }
 
 const App = () => {
-  // const shouldLog = useRef(true);
-  // useEffect(() => {
-  //   if (shouldLog.current) {
-  //     shouldLog.current = false;
-  //     console.log("clicked");
-  //   }
-  // listener.current = () => {
-  //   console.log("clicked");
-  // };
-  // document.addEventListener("click", listener.current);
-  // return () => {
-  //   document.removeEventListener("click", listener.current);
-  // };
-  // }, []);
-
-  const [recipes, setRecipes] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("Chicken");
+  const [cityName, setCityName] = useState("");
+  const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const [favorites, setFavorites] = useState(() => {
-    const saved = localStorage.getItem("app_fav_recipes");
-    return saved ? JSON.parse(saved) : [];
+  const [notes, setNotes] = useState(() => {
+    const savedNotes = localStorage.getItem("app_weather_notes");
+    return savedNotes ? JSON.parse(savedNotes) : [];
   });
 
-  const categories = ["Chicken", "Beef", "Seafood", "Vegetarian", "Dessert"];
-
   useEffect(() => {
-    localStorage.setItem("app_fav_recipes", JSON.stringify(favorites));
-  }, [favorites]);
+    localStorage.setItem("app_weather_notes", JSON.stringify(notes));
+  }, [notes]);
 
-  useEffect(() => {
-    const fetchRecipes = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(
-          `https://www.themealdb.com/api/json/v1/1/filter.php?c=${selectedCategory}`,
-        );
-        if (!res.ok) throw new Error("تعذر اتصال السيرفر");
-        const data = await res.json();
-        setRecipes(data.meals || []);
-      } catch (err) {
-        setError(err.message || "حدث خطأ أثناء جلب البيانات");
-      } finally {
-        setLoading(false);
+  const fetchWeather = async (city) => {
+    setLoading(true);
+    setError(null);
+    setCityName(city);
+
+    try {
+      const geoRes = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`,
+      );
+      const geoData = await geoRes.json();
+
+      if (!geoData.results || geoData.results.length === 0) {
+        throw new Error("لم يتم العثور على المدينة، تأكد من الاسم!");
       }
+
+      const { latitude, longitude, name } = geoData.results[0];
+
+      const weatherRes = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`,
+      );
+      const weatherApiData = await weatherRes.json();
+
+      setWeatherData({
+        cityName: name,
+        temperature: weatherApiData.current_weather.temperature,
+        windSpeed: weatherApiData.current_weather.windspeed,
+      });
+    } catch (err) {
+      setError(err.message || "حدث خطأ أثناء جلب البيانات");
+      setWeatherData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addNote = (text) => {
+    const newNote = {
+      id: Date.now(),
+      city: cityName.toLowerCase(),
+      text,
     };
-
-    fetchRecipes();
-  }, [selectedCategory]);
-
-  const toggleFavorite = (recipe) => {
-    setFavorites((prev) => {
-      const exists = prev.some((item) => item.idMeal === recipe.idMeal);
-      if (exists) {
-        return prev.filter((item) => item.idMeal !== recipe.idMeal);
-      }
-      return [...prev, recipe];
-    });
+    setNotes((prev) => [...prev, newNote]);
   };
 
-  const removeFavorite = (idMeal) => {
-    setFavorites((prev) => prev.filter((item) => item.idMeal !== idMeal));
+  const deleteNote = (id) => {
+    setNotes((prev) => prev.filter((note) => note.id !== id));
   };
+
+  const currentCityNotes = notes.filter(
+    (note) => note.city === cityName.toLowerCase(),
+  );
 
   return (
     <div className="app-container">
-      <h1>مستكشف الوصفات الشهية 👨‍🍳</h1>
+      <h1>تطبيق الطقس والملاحظات 🌤️</h1>
+      <SearchForm onSearch={fetchWeather} />
 
-      <CategoryFilter
-        categories={categories}
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-      />
+      <WeatherCard weatherData={weatherData} loading={loading} error={error} />
 
-      <div className="main-layout">
-        <div className="content-area">
-          <RecipeList
-            recipes={recipes}
-            loading={loading}
-            error={error}
-            favorites={favorites}
-            onToggleFavorite={toggleFavorite}
-          />
+      {weatherData && !loading && !error && (
+        <div className="notes-section">
+          <NoteForm onAddNote={addNote} cityName={weatherData.cityName} />
+          <NotesList notes={currentCityNotes} onDeleteNote={deleteNote} />
         </div>
-
-        <aside className="sidebar">
-          <Favorites favorites={favorites} onRemoveFavorite={removeFavorite} />
-        </aside>
-      </div>
+      )}
     </div>
   );
 };
